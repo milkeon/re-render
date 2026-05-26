@@ -18,6 +18,7 @@
   "build": {
     "appId": "com.milkeon.rerender",
     "productName": "re:render",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "files": [
       "main.js",
       "preload.js",
@@ -28,6 +29,12 @@
       "target": [
         "dir"
       ]
+    },
+    "win": {
+      "target": [
+        "portable"
+      ]
     }
   }
 }
+
