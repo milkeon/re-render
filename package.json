@@ -1,0 +1,33 @@
+{
+  "name": "re-render",
+  "version": "0.1.0",
+  "private": true,
+  "description": "re:render - Electron app that re-renders running windows with a draggable crop minimap.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "package": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^32.2.0",
+    "electron-builder": "^25.1.8",
+    "ws": "^8.21.0"
+  },
+  "author": "milkeon",
+  "build": {
+    "appId": "com.milkeon.rerender",
+    "productName": "re:render",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html"
+    ],
+    "linux": {
+      "target": [
+        "dir"
+      ]
+    }
+  }
+}

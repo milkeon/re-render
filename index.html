@@ -7,13 +7,13 @@
   <style>
     :root {
       --bg: #050816;
-      --panel: rgba(10, 14, 26, 0.74);
-      --panel-2: rgba(8, 10, 18, 0.88);
-      --line: rgba(255, 255, 255, 0.11);
+      --panel: rgba(8, 12, 22, 0.88);
+      --panel-soft: rgba(255, 255, 255, 0.08);
+      --line: rgba(255, 255, 255, 0.12);
       --text: #f5f7ff;
-      --muted: #9eb0cf;
+      --muted: #aab8d5;
       --accent: #ffffff;
-      --shadow: 0 22px 60px rgba(0, 0, 0, 0.4);
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
       --radius: 18px;
     }
 
@@ -48,7 +48,7 @@
       top: 18px;
       left: 18px;
       z-index: 30;
-      width: min(80vw, 760px);
+      width: min(82vw, 780px);
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -69,6 +69,7 @@
       font-weight: 900;
       letter-spacing: -0.06em;
       line-height: 1;
+      pointer-events: none;
     }
 
     .controls {
@@ -80,7 +81,7 @@
     }
 
     .source-button {
-      width: min(80%, 420px);
+      width: min(100%, 420px);
       display: inline-flex;
       align-items: center;
       justify-content: space-between;
@@ -100,7 +101,11 @@
       border-color: rgba(255,255,255,0.28);
       background: rgba(255,255,255,0.11);
     }
-    .source-button:active { transform: translateY(0); }
+    .source-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
     .source-button .current {
       font-size: 17px;
       font-weight: 800;
@@ -108,9 +113,21 @@
     }
     .source-button .chev { opacity: 0.9; font-size: 18px; }
 
+    .meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 4px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
     .menu {
       display: none;
-      width: min(80%, 420px);
+      width: min(100%, 420px);
       border-radius: 16px;
       border: 1px solid rgba(255,255,255,0.12);
       overflow: hidden;
@@ -119,36 +136,62 @@
       backdrop-filter: blur(14px);
     }
     .menu.open { display: block; }
+    .menu-empty {
+      padding: 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
 
     .option {
-      padding: 13px 14px;
-      display: flex;
+      width: 100%;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      padding: 12px 14px;
+      display: grid;
+      grid-template-columns: 74px 1fr 18px;
       align-items: center;
-      justify-content: space-between;
-      gap: 14px;
+      gap: 12px;
       border-top: 1px solid rgba(255,255,255,0.05);
       cursor: pointer;
-      user-select: none;
+      text-align: left;
       transition: background .12s ease;
     }
     .option:first-child { border-top: none; }
     .option:hover { background: rgba(255,255,255,0.08); }
     .option.active { background: rgba(125, 164, 255, 0.18); }
-    .option .name {
-      font-size: 15px;
+    .option .thumb {
+      width: 74px;
+      height: 42px;
+      border-radius: 10px;
+      background-size: cover;
+      background-position: center;
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+    }
+    .option .info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .option .info strong {
+      font-size: 14px;
       font-weight: 800;
       letter-spacing: -0.03em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .option .kind {
-      font-size: 12px;
+    .option .info small {
       color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
     }
-    .dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 999px;
-      flex: 0 0 auto;
-      box-shadow: 0 0 0 4px rgba(255,255,255,0.05);
+    .option .chev {
+      justify-self: end;
+      color: rgba(255,255,255,0.7);
+      font-weight: 700;
     }
 
     .minimap-shell {
@@ -156,7 +199,7 @@
       right: 18px;
       bottom: 18px;
       z-index: 20;
-      width: min(320px, calc(100vw - 36px));
+      width: min(360px, calc(100vw - 36px));
       border-radius: 18px;
       overflow: hidden;
       border: 1px solid rgba(255,255,255,0.12);
@@ -168,17 +211,70 @@
     canvas.minimap {
       display: block;
       width: 100%;
-      height: 178px;
+      height: 198px;
       background: #05070f;
       touch-action: none;
       cursor: grab;
     }
     canvas.minimap.dragging { cursor: grabbing; }
 
+    .status {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      z-index: 18;
+      max-width: min(48vw, 640px);
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(8, 12, 22, 0.72);
+      border: 1px solid rgba(255,255,255,0.1);
+      backdrop-filter: blur(12px);
+      color: rgba(255,255,255,0.84);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+    }
+
+    .empty-state {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      pointer-events: none;
+      color: rgba(255,255,255,0.8);
+      text-shadow: 0 2px 18px rgba(0,0,0,0.35);
+    }
+
+    .empty-state .card {
+      max-width: 680px;
+      padding: 24px 28px;
+      border-radius: 24px;
+      background: rgba(8, 12, 22, 0.55);
+      border: 1px solid rgba(255,255,255,0.1);
+      backdrop-filter: blur(14px);
+    }
+
+    .empty-state h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 4vw, 44px);
+      letter-spacing: -0.06em;
+    }
+
+    .empty-state p {
+      margin: 0;
+      color: rgba(170, 184, 213, 0.95);
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
     @media (max-width: 700px) {
       .brand-wrap { top: 10px; left: 10px; width: calc(100vw - 20px); }
       .source-button, .menu { width: 100%; }
       .minimap-shell { right: 10px; bottom: 10px; width: calc(100vw - 20px); }
+      .status { left: 10px; bottom: 10px; max-width: calc(100vw - 20px); }
     }
   </style>
 </head>
@@ -190,419 +286,35 @@
       <div class="brand">re:render</div>
       <div class="controls">
         <button id="sourceButton" class="source-button" aria-expanded="false" aria-controls="sourceMenu">
-          <span class="current" id="currentSourceName"></span>
+          <span>
+            <span class="current" id="currentSourceName">실행 중 창을 선택하세요</span>
+          </span>
           <span class="chev">▾</span>
         </button>
+        <div class="meta">
+          <span id="currentSourceMeta">실제 실행 중 창 목록만 표시</span>
+        </div>
         <div id="sourceMenu" class="menu" role="listbox" aria-label="running programs"></div>
       </div>
     </div>
 
     <aside class="minimap-shell" aria-label="mini map">
-      <canvas id="miniCanvas" class="minimap" width="640" height="360"></canvas>
+      <canvas id="miniCanvas" class="minimap" width="720" height="396"></canvas>
     </aside>
 
-    <canvas id="worldCanvas" width="1920" height="1080" hidden></canvas>
+    <div id="statusLine" class="status">실행 중 창을 불러오는 중…</div>
+
+    <div id="emptyState" class="empty-state">
+      <div class="card">
+        <h1>실행 중 창을 선택하면<br />여기에서 크게 다시 보여줍니다</h1>
+        <p>
+          왼쪽 상단 버튼으로 실제 창을 고르고,
+          오른쪽 아래 미니맵에서 클릭+드래그로 보고 싶은 영역을 다시 잡아주세요.
+        </p>
+      </div>
+    </div>
   </div>
 
-  <script>
-    (() => {
-      const WORLD_W = 1920;
-      const WORLD_H = 1080;
-      const FALLBACK_SOURCES = [];
-
-      const mainCanvas = document.getElementById('mainCanvas');
-      const miniCanvas = document.getElementById('miniCanvas');
-      const worldCanvas = document.getElementById('worldCanvas');
-      const sourceButton = document.getElementById('sourceButton');
-      const sourceMenu = document.getElementById('sourceMenu');
-      const currentSourceName = document.getElementById('currentSourceName');
-
-      const mainCtx = mainCanvas.getContext('2d');
-      const miniCtx = miniCanvas.getContext('2d');
-      const worldCtx = worldCanvas.getContext('2d');
-
-      const state = {
-        sources: [],
-        source: null,
-        centerX: WORLD_W * 0.5,
-        centerY: WORLD_H * 0.5,
-        zoom: 1.8,
-        selection: null,
-        dragSelection: null,
-        dragStart: null,
-        dpr: window.devicePixelRatio || 1,
-        t: 0,
-      };
-
-      const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-
-      function normalizeSource(source) {
-        if (!source) return null;
-        const name = String(source.name || source.title || source.appName || source.windowTitle || '').trim();
-        const id = source.id || source.windowId || source.handle;
-        if (id == null && !name) return null;
-        const colors = Array.isArray(source.colors) && source.colors.length >= 3
-          ? source.colors.slice(0, 3)
-          : ['#07111f', '#1b2640', '#50627d'];
-        return {
-          id: String(id || name || crypto.randomUUID()),
-          name: name || 'Window',
-          kind: String(source.kind || source.type || 'window'),
-          colors,
-          active: source.active !== false,
-        };
-      }
-
-      async function loadSources() {
-        try {
-          const native = window.__rerenderNative;
-          if (native && typeof native.listRunningWindows === 'function') {
-            const result = await native.listRunningWindows();
-            if (Array.isArray(result) && result.length) {
-              return result.filter(Boolean).map((item, index) => normalizeSource(item, index));
-            }
-          }
-        } catch (err) {
-          console.warn('native source list failed', err);
-        }
-        return [];
-      }
-
-      function resize(canvas, ctx) {
-        const rect = canvas.getBoundingClientRect();
-        const w = Math.max(1, Math.floor(rect.width * state.dpr));
-        const h = Math.max(1, Math.floor(rect.height * state.dpr));
-        if (canvas.width !== w || canvas.height !== h) {
-          canvas.width = w;
-          canvas.height = h;
-        }
-        ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
-      }
-
-      function clampViewport() {
-        const vp = getViewport();
-        state.centerX = clamp(state.centerX, vp.w / 2, WORLD_W - vp.w / 2);
-        state.centerY = clamp(state.centerY, vp.h / 2, WORLD_H - vp.h / 2);
-      }
-
-      function defaultViewport() {
-        const w = WORLD_W / state.zoom;
-        const h = WORLD_H / state.zoom;
-        return {
-          x: clamp(state.centerX - w / 2, 0, WORLD_W - w),
-          y: clamp(state.centerY - h / 2, 0, WORLD_H - h),
-          w,
-          h,
-        };
-      }
-
-      function normalizeSelection(start, end) {
-        const minSize = 96;
-        const x1 = clamp(Math.min(start.x, end.x), 0, WORLD_W - minSize);
-        const y1 = clamp(Math.min(start.y, end.y), 0, WORLD_H - minSize);
-        const x2 = clamp(Math.max(start.x, end.x), minSize, WORLD_W);
-        const y2 = clamp(Math.max(start.y, end.y), minSize, WORLD_H);
-        const w = Math.max(minSize, x2 - x1);
-        const h = Math.max(minSize, y2 - y1);
-        return {
-          x: clamp(x1, 0, WORLD_W - w),
-          y: clamp(y1, 0, WORLD_H - h),
-          w: clamp(w, minSize, WORLD_W),
-          h: clamp(h, minSize, WORLD_H),
-        };
-      }
-
-      function applySelection(rect) {
-        state.selection = rect;
-        state.dragSelection = null;
-        state.centerX = rect.x + rect.w / 2;
-        state.centerY = rect.y + rect.h / 2;
-        state.zoom = Math.min(WORLD_W / rect.w, WORLD_H / rect.h);
-        window.__rerenderState = {
-          source: state.source,
-          viewport: rect,
-          centerX: state.centerX,
-          centerY: state.centerY,
-          zoom: state.zoom,
-        };
-      }
-
-      function getViewport() {
-        return state.dragSelection || state.selection || defaultViewport();
-      }
-
-      function setSource(sourceId) {
-        const match = state.sources.find((item) => item.id === sourceId) || null;
-        state.source = match;
-        currentSourceName.textContent = match ? match.name : '';
-        updateMenuHighlight();
-        if (match?.kind === 'browser') state.zoom = 1.8;
-        if (match?.kind === 'editor') state.zoom = 2.2;
-        if (match?.kind === 'video') state.zoom = 1.4;
-        if (match?.kind === 'chat') state.zoom = 2.0;
-        if (match?.kind === 'presentation') state.zoom = 1.3;
-        state.centerX = WORLD_W * 0.5;
-        state.centerY = WORLD_H * 0.5;
-        state.selection = defaultViewport();
-        state.dragSelection = null;
-        window.__rerenderState = {
-          source: state.source,
-          viewport: getViewport(),
-          centerX: state.centerX,
-          centerY: state.centerY,
-          zoom: state.zoom,
-        };
-      }
-
-      function buildMenu() {
-        sourceMenu.innerHTML = '';
-        state.sources.forEach((item) => {
-          const row = document.createElement('div');
-          row.className = 'option';
-          row.dataset.id = item.id;
-          row.setAttribute('role', 'option');
-          row.innerHTML = `
-            <div style="display:flex;align-items:center;gap:12px;min-width:0;">
-              <span class="dot" style="background: linear-gradient(135deg, ${item.colors[0]}, ${item.colors[1]});"></span>
-              <div style="min-width:0;">
-                <div class="name">${escapeHtml(item.name)}</div>
-              </div>
-            </div>
-            <div style="color:rgba(255,255,255,0.72);font-size:12px;font-weight:700;">●</div>
-          `;
-          row.addEventListener('click', () => {
-            setSource(item.id);
-            sourceMenu.classList.remove('open');
-            sourceButton.setAttribute('aria-expanded', 'false');
-          });
-          sourceMenu.appendChild(row);
-        });
-      }
-
-      function updateMenuHighlight() {
-        [...sourceMenu.querySelectorAll('.option')].forEach((el) => {
-          el.classList.toggle('active', el.dataset.id === state.source?.id);
-        });
-      }
-
-      function escapeHtml(text) {
-        return String(text)
-          .replaceAll('&', '&amp;')
-          .replaceAll('<', '&lt;')
-          .replaceAll('>', '&gt;')
-          .replaceAll('"', '&quot;')
-          .replaceAll("'", '&#39;');
-      }
-
-      function roundRect(ctx, x, y, w, h, r, fill, stroke) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.arcTo(x + w, y, x + w, y + h, r);
-        ctx.arcTo(x + w, y + h, x, y + h, r);
-        ctx.arcTo(x, y + h, x, y, r);
-        ctx.arcTo(x, y, x + w, y, r);
-        ctx.closePath();
-        if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
-        ctx.restore();
-      }
-
-      function gradient(ctx, x, y, w, h, colors) {
-        const g = ctx.createLinearGradient(x, y, x + w, y + h);
-        g.addColorStop(0, colors[0]);
-        g.addColorStop(0.5, colors[1]);
-        g.addColorStop(1, colors[2]);
-        return g;
-      }
-
-      function drawWorld(ctx, time) {
-        const s = state.source;
-        const colors = s?.colors || ['#07111f', '#1b2640', '#50627d'];
-        ctx.clearRect(0, 0, WORLD_W, WORLD_H);
-        ctx.fillStyle = gradient(ctx, 0, 0, WORLD_W, WORLD_H, colors);
-        ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-
-        ctx.save();
-        ctx.globalAlpha = 0.10;
-        ctx.strokeStyle = '#d6e5ff';
-        for (let x = 0; x <= WORLD_W; x += 120) {
-          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_H); ctx.stroke();
-        }
-        for (let y = 0; y <= WORLD_H; y += 120) {
-          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_W, y); ctx.stroke();
-        }
-        ctx.restore();
-
-        const pulseX = WORLD_W * 0.48 + Math.sin(time * 0.001) * 220;
-        const pulseY = WORLD_H * 0.36 + Math.cos(time * 0.00125) * 120;
-        const glow = ctx.createRadialGradient(pulseX, pulseY, 20, pulseX, pulseY, 360);
-        glow.addColorStop(0, 'rgba(255,255,255,0.22)');
-        glow.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = glow;
-        ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-
-        const shellX = 120;
-        const shellY = 96;
-        const shellW = 780;
-        const shellH = 460;
-        roundRect(ctx, shellX, shellY, shellW, shellH, 30, 'rgba(4, 8, 16, 0.56)', 'rgba(255,255,255,0.16)');
-
-        roundRect(ctx, shellX + 22, shellY + 22, shellW - 44, 44, 14, 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.10)');
-        roundRect(ctx, shellX + 22, shellY + 86, shellW - 44, 126, 18, 'rgba(255,255,255,0.14)', 'rgba(255,255,255,0.08)');
-        roundRect(ctx, shellX + 22, shellY + 232, shellW - 44, 170, 18, 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.08)');
-
-        for (let i = 0; i < 4; i++) {
-          const bx = shellX + 28 + i * ((shellW - 72) / 4);
-          roundRect(ctx, bx, shellY + 246, 160, 138, 18, 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0.08)');
-          ctx.fillStyle = 'rgba(255,255,255,0.18)';
-          ctx.fillRect(bx + 16, shellY + 268, 126, 12);
-          ctx.fillRect(bx + 16, shellY + 292, 96, 10);
-          ctx.fillRect(bx + 16, shellY + 316, 110, 10);
-        }
-
-        drawWave(ctx, shellX + 28, shellY + shellH - 58, shellW - 56, 30, time, '#d9e7ff');
-      }
-
-      function drawWave(ctx, x, y, w, h, time, color) {
-        ctx.save();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        for (let i = 0; i <= w; i += 8) {
-          const px = x + i;
-          const py = y + h / 2 + Math.sin(i * 0.03 + time * 0.004) * 8 + Math.cos(i * 0.017 + time * 0.003) * 4;
-          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-        }
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      function drawMiniMap() {
-        resize(miniCanvas, miniCtx);
-        const rect = miniCanvas.getBoundingClientRect();
-        const w = rect.width;
-        const h = rect.height;
-        miniCtx.clearRect(0, 0, w, h);
-        miniCtx.drawImage(worldCanvas, 0, 0, WORLD_W, WORLD_H, 0, 0, w, h);
-
-        const vp = getViewport();
-        const sx = (vp.x / WORLD_W) * w;
-        const sy = (vp.y / WORLD_H) * h;
-        const sw = (vp.w / WORLD_W) * w;
-        const sh = (vp.h / WORLD_H) * h;
-
-        miniCtx.save();
-        miniCtx.fillStyle = 'rgba(0,0,0,0.22)';
-        miniCtx.fillRect(0, 0, w, h);
-        miniCtx.clearRect(sx, sy, sw, sh);
-        miniCtx.drawImage(worldCanvas, 0, 0, WORLD_W, WORLD_H, 0, 0, w, h);
-        miniCtx.fillStyle = 'rgba(0,0,0,0.18)';
-        miniCtx.fillRect(0, 0, w, h);
-        miniCtx.clearRect(sx, sy, sw, sh);
-        miniCtx.strokeStyle = '#ffffff';
-        miniCtx.lineWidth = 4;
-        miniCtx.shadowColor = 'rgba(255,255,255,0.6)';
-        miniCtx.shadowBlur = 14;
-        miniCtx.strokeRect(sx + 2, sy + 2, sw - 4, sh - 4);
-        miniCtx.shadowBlur = 0;
-        miniCtx.restore();
-      }
-
-      function drawMain() {
-        resize(mainCanvas, mainCtx);
-        const rect = mainCanvas.getBoundingClientRect();
-        const vp = getViewport();
-        mainCtx.clearRect(0, 0, rect.width, rect.height);
-        mainCtx.drawImage(worldCanvas, vp.x, vp.y, vp.w, vp.h, 0, 0, rect.width, rect.height);
-        const overlay = mainCtx.createLinearGradient(0, 0, 0, rect.height);
-        overlay.addColorStop(0, 'rgba(0,0,0,0.04)');
-        overlay.addColorStop(1, 'rgba(0,0,0,0.18)');
-        mainCtx.fillStyle = overlay;
-        mainCtx.fillRect(0, 0, rect.width, rect.height);
-      }
-
-      function pointerToWorld(canvas, ev) {
-        const rect = canvas.getBoundingClientRect();
-        const x = clamp(((ev.clientX - rect.left) / rect.width) * WORLD_W, 0, WORLD_W);
-        const y = clamp(((ev.clientY - rect.top) / rect.height) * WORLD_H, 0, WORLD_H);
-        return { x, y };
-      }
-
-      let dragging = false;
-      let pointerId = null;
-
-      miniCanvas.addEventListener('pointerdown', (ev) => {
-        dragging = true;
-        pointerId = ev.pointerId;
-        miniCanvas.classList.add('dragging');
-        try { miniCanvas.setPointerCapture(ev.pointerId); } catch (_) {}
-        const p = pointerToWorld(miniCanvas, ev);
-        state.dragStart = p;
-        state.dragSelection = { x: p.x, y: p.y, w: 1, h: 1 };
-      });
-      miniCanvas.addEventListener('pointermove', (ev) => {
-        if (!dragging || pointerId !== ev.pointerId || !state.dragStart) return;
-        const p = pointerToWorld(miniCanvas, ev);
-        state.dragSelection = normalizeSelection(state.dragStart, p);
-      });
-      function endDrag(ev) {
-        if (pointerId !== null && ev && ev.pointerId !== pointerId) return;
-        if (dragging && state.dragSelection) {
-          applySelection(state.dragSelection);
-        }
-        dragging = false;
-        pointerId = null;
-        state.dragStart = null;
-        miniCanvas.classList.remove('dragging');
-      }
-      miniCanvas.addEventListener('pointerup', endDrag);
-      miniCanvas.addEventListener('pointercancel', endDrag);
-      miniCanvas.addEventListener('pointerleave', endDrag);
-
-      sourceButton.addEventListener('click', () => {
-        if (!state.sources.length) return;
-        const open = sourceMenu.classList.toggle('open');
-        sourceButton.setAttribute('aria-expanded', String(open));
-      });
-
-      document.addEventListener('click', (ev) => {
-        if (!sourceButton.contains(ev.target) && !sourceMenu.contains(ev.target)) {
-          sourceMenu.classList.remove('open');
-          sourceButton.setAttribute('aria-expanded', 'false');
-        }
-      });
-
-      document.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Escape') {
-          sourceMenu.classList.remove('open');
-          sourceButton.setAttribute('aria-expanded', 'false');
-        }
-      });
-
-      async function init() {
-        state.sources = await loadSources();
-        buildMenu();
-        setSource(state.sources[0]?.id || null);
-        sourceButton.disabled = state.sources.length === 0;
-        if (!state.sources.length) sourceButton.setAttribute('aria-disabled', 'true');
-        requestAnimationFrame(loop);
-      }
-
-      function loop(time) {
-        state.t = time;
-        drawWorld(worldCtx, time);
-        drawMain();
-        drawMiniMap();
-        requestAnimationFrame(loop);
-      }
-
-      window.addEventListener('resize', () => {
-        state.dpr = window.devicePixelRatio || 1;
-      });
-
-      init();
-    })();
-  </script>
+  <script src="renderer.js"></script>
 </body>
 </html>
