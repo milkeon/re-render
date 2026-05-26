@@ -10,8 +10,9 @@ function createWindow() {
     backgroundColor: '#050816',
     title: 're:render',
     webPreferences: {
-      contextIsolation: false,
-      nodeIntegration: true,
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
       sandbox: false,
     },
   });
@@ -24,7 +25,7 @@ function createWindow() {
     if (!process.env.RERENDER_DEBUG) return;
     try {
       const probe = await win.webContents.executeJavaScript(
-        "({ req: typeof require, proc: typeof process, hasBridge: !!window.__rerenderNative })",
+        "({ hasBridge: !!window.__rerenderNative, hasList: !!window.__rerenderNative?.listRunningSources, hasWindowList: !!window.__rerenderNative?.listRunningWindows })",
       );
       console.log('[rerender-debug]', JSON.stringify(probe));
     } catch (error) {

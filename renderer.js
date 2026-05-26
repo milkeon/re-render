@@ -1,31 +1,13 @@
-const { desktopCapturer } = typeof require === 'function' ? require('electron') : {};
+const nativeBridge = window.__rerenderNative || {};
+window.__rerenderNative = nativeBridge;
 
-async function listRunningWindows() {
-  if (!desktopCapturer) return [];
-  const sources = await desktopCapturer.getSources({
-    types: ['window'],
-    thumbnailSize: { width: 960, height: 540 },
-    fetchWindowIcons: true,
-  });
-
-  return sources
-    .filter((source) => source && source.name && !/re:render|screen-reframe|re-render/i.test(source.name))
-    .map((source) => {
-      const size = source.thumbnail.getSize();
-      return {
-        id: source.id,
-        name: source.name,
-        kind: 'window',
-        preview: source.thumbnail.toDataURL(),
-        width: size.width,
-        height: size.height,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+function getSourceLister() {
+  return nativeBridge.listRunningSources || nativeBridge.listRunningWindows;
 }
 
-window.__rerenderNative = window.__rerenderNative || {};
-window.__rerenderNative.listRunningWindows = listRunningWindows;
+function kindLabel(kind) {
+  return kind === 'screen' ? '화면' : '창';
+}
 
 const mainCanvas = document.getElementById('mainCanvas');
 const miniCanvas = document.getElementById('miniCanvas');
@@ -44,6 +26,7 @@ const state = {
   source: null,
   image: null,
   imageKey: '',
+  bridgeAvailable: false,
   selection: null,
   dragSelection: null,
   dragStart: null,
@@ -144,14 +127,15 @@ function selectSource(source) {
   state.dragStart = null;
   state.image = null;
   state.imageKey = '';
-  currentSourceName.textContent = source ? source.name : '실행 중 창을 선택하세요';
-  currentSourceMeta.textContent = source ? `${source.width}×${source.height}` : '실제 실행 중 창 목록만 표시';
+  currentSourceName.textContent = source ? source.name : '실행 중 창/화면을 선택하세요';
+  currentSourceMeta.textContent = source ? `${kindLabel(source.kind)} · ${source.width}×${source.height}` : '실제 실행 중 창/화면 목록만 표시';
   emptyState.style.display = source ? 'none' : 'flex';
-  sourceButton.disabled = !source && state.sources.length === 0;
   updateMenuHighlight();
   updateWindowState();
   if (!source) {
-    setStatus('실행 중 창이 없습니다.');
+    setStatus(state.bridgeAvailable
+      ? '실행 중 창/화면이 없습니다. 드롭다운에서 다시 확인하세요.'
+      : '이 화면은 브라우저라 창 목록을 가져올 수 없습니다. 데스크톱 앱에서 열어주세요.');
     render();
     return;
   }
@@ -170,7 +154,9 @@ function buildMenu() {
   if (!state.sources.length) {
     const empty = document.createElement('div');
     empty.className = 'menu-empty';
-    empty.textContent = '실행 중 창을 찾지 못했습니다.';
+    empty.textContent = state.bridgeAvailable
+      ? '실행 중 창/화면을 찾지 못했습니다.'
+      : '브라우저에서는 창 목록을 가져올 수 없습니다. 데스크톱 앱에서 확인하세요.';
     sourceMenu.appendChild(empty);
     return;
   }
@@ -184,7 +170,7 @@ function buildMenu() {
       <span class="thumb" style="background-image:url('${source.preview}')"></span>
       <span class="info">
         <strong>${escapeHtml(source.name)}</strong>
-        <small>${source.width}×${source.height}</small>
+        <small>${kindLabel(source.kind)} · ${source.width}×${source.height}</small>
       </span>
       <span class="chev">▸</span>
     `;
@@ -209,14 +195,18 @@ function escapeHtml(text) {
 }
 
 async function refreshSources() {
-  if (!window.__rerenderNative || typeof window.__rerenderNative.listRunningWindows !== 'function') {
-    setStatus('네이티브 브리지를 찾지 못했습니다.');
+  const listSources = getSourceLister();
+  state.bridgeAvailable = typeof listSources === 'function';
+  if (typeof listSources !== 'function') {
+    setStatus('이 화면은 브라우저라 창 목록을 가져올 수 없습니다. 데스크톱 앱에서 열어주세요.');
+    sourceButton.disabled = false;
     return;
   }
 
-  setStatus('실행 중 창을 불러오는 중…');
-  const list = await window.__rerenderNative.listRunningWindows();
+  setStatus('실행 중 창/화면을 불러오는 중…');
+  const list = await listSources();
   state.sources = Array.isArray(list) ? list : [];
+  sourceButton.disabled = false;
   buildMenu();
 
   const current = state.source ? state.sources.find((item) => item.id === state.source.id) : null;
@@ -295,10 +285,10 @@ function renderMain() {
     mainCtx.save();
     mainCtx.fillStyle = 'rgba(255,255,255,0.92)';
     mainCtx.font = '700 26px Inter, system-ui, sans-serif';
-    mainCtx.fillText('실행 중 창을 선택하면 여기에 크게 다시 보여줍니다.', 36, 68);
+    mainCtx.fillText('창을 선택하면 여기에 크게 보여줍니다.', 36, 68);
     mainCtx.fillStyle = 'rgba(158,176,207,0.92)';
     mainCtx.font = '500 16px Inter, system-ui, sans-serif';
-    mainCtx.fillText('오른쪽 아래 미니맵에서 드래그로 다시 보고 싶은 영역을 잡아주세요.', 36, 100);
+    mainCtx.fillText('오른쪽 아래 미니맵에서 드래그로 영역을 다시 잡아주세요.', 36, 100);
     mainCtx.restore();
     return;
   }

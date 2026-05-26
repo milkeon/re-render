@@ -11,29 +11,45 @@ function isOwnWindowName(name) {
   return APP_TITLE_HINTS.some((hint) => value.includes(hint));
 }
 
-async function listRunningWindows() {
+async function listRunningSources() {
   const sources = await desktopCapturer.getSources({
-    types: ['window'],
-    thumbnailSize: { width: 960, height: 540 },
+    types: ['window', 'screen'],
+    thumbnailSize: { width: 1280, height: 720 },
     fetchWindowIcons: true,
   });
 
   return sources
-    .filter((source) => source && source.name && !isOwnWindowName(source.name))
+    .filter((source) => {
+      if (!source || !source.name) return false;
+      const kind = source.id.startsWith('screen:') ? 'screen' : 'window';
+      return kind === 'screen' || !isOwnWindowName(source.name);
+    })
     .map((source) => {
       const size = source.thumbnail.getSize();
+      const kind = source.id.startsWith('screen:') ? 'screen' : 'window';
       return {
         id: source.id,
         name: source.name,
-        kind: 'window',
+        kind,
         preview: source.thumbnail.toDataURL(),
         width: size.width,
         height: size.height,
       };
     })
-    .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    .sort((a, b) => {
+      const kindOrder = a.kind === b.kind ? 0 : a.kind === 'window' ? -1 : 1;
+      return kindOrder || a.name.localeCompare(b.name, 'ko');
+    });
 }
 
 contextBridge.exposeInMainWorld('__rerenderNative', {
-  listRunningWindows,
+  listRunningSources,
+  listRunningWindows: async () => {
+    const sources = await listRunningSources();
+    return sources.filter((source) => source.kind === 'window');
+  },
+  listRunningScreens: async () => {
+    const sources = await listRunningSources();
+    return sources.filter((source) => source.kind === 'screen');
+  },
 });
