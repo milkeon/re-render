@@ -1,20 +1,20 @@
-# Verification log
+# 검증 로그
 
-## Electron build
+## Electron 빌드
 - `node --check main.js`
 - `node --check preload.js`
 - `node --check renderer.js`
 - `npm run package`
-- Output created at `dist/linux-unpacked/`
+- 결과물은 `dist/linux-unpacked/` 에 생성됨
 
-## Runtime check
-- `npm start` initially failed because the host lacked `libgtk-3.so.0`
-- Installed the required GTK runtime packages with `apt-get`
-- `xvfb-run -a npm start` launches successfully in a headless display session
-- `xvfb-run -a ./dist/linux-unpacked/re-render` also stays running, confirming the packaged build boots
+## 실행 확인
+- `npm start`는 처음에 호스트에 `libgtk-3.so.0` 이 없어서 실패함
+- `apt-get` 으로 필요한 GTK 런타임 패키지를 설치함
+- `xvfb-run -a npm start` 는 headless 디스플레이에서 정상 실행됨
+- `xvfb-run -a ./dist/linux-unpacked/re-render` 도 실행되어 패키징본 부팅을 확인함
 
-## Behavioral checklist
-- Window list comes from the native bridge
-- Fake preset windows are removed
-- Minimaps accept click-and-drag to define a new crop
-- Main canvas renders the selected crop
+## 동작 확인
+- 창 목록은 네이티브 브리지에서 가져옴
+- 가짜 프리셋 창은 제거함
+- 미니맵은 클릭+드래그로 새 영역을 지정함
+- 메인 화면은 선택한 영역을 다시 렌더링함

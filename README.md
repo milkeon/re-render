@@ -1,39 +1,42 @@
 # re:render
 
-`re:render` is an Electron desktop app that lists *real running windows*, shows their live thumbnails, and lets you redraw a selected region with a simple drag-based minimap.
+`re:render`는 *실행 중인 실제 창*을 골라서, 그 화면 일부를 미니맵에서 다시 잘라 크게 보여주는 데스크톱 앱입니다.
 
-## What it does
-- Shows only actual running windows from the OS bridge
-- Lets you choose a window with one button
-- Uses the bottom-right minimap to **click + drag** a new crop region
-- Renders the selected crop full-screen in the main view
-- Refreshes window thumbnails automatically so the preview stays live
+## 한줄 사용법
+1. 앱을 연다
+2. 왼쪽 상단 버튼에서 창을 고른다
+3. 오른쪽 아래 미니맵에서 **클릭 + 드래그**로 보고 싶은 영역을 다시 잡는다
+4. 가운데 큰 화면에서 선택한 부분을 확인한다
 
-## Tech stack
+## 무엇을 하는 앱인가
+- 실제 실행 중인 창만 보여줌
+- 가짜 프리셋 창은 사용하지 않음
+- 선택한 창의 썸네일을 보여줌
+- 미니맵은 이동이 아니라 **새 영역 선택** 용도
+- 선택한 영역을 메인 화면에 크게 다시 렌더링함
+
+## 기술 구성
 - Electron
-- TypeScript-ready structure with plain JavaScript renderer files for now
-- `desktopCapturer` bridge via `preload.js`
-- Canvas-based rendering for the main view and minimap
+- JavaScript 렌더러
+- `preload.js`의 네이티브 브리지
+- Canvas 기반 메인 화면 / 미니맵 렌더링
 
-## Run locally
+## 로컬 실행
 ```bash
 cd /home/ubuntu/projects/screen-reframe
 npm install
 npm start
 ```
 
-## Package
+## 패키징
 ```bash
 npm run package
 ```
 
-This creates an unpacked Linux build in:
+완료되면 Linux 언패키드 빌드는 다음 위치에 생성됩니다.
 - `dist/linux-unpacked/`
 
-## Notes
-- The app intentionally filters out its own window from the source list.
-- The current implementation uses real window thumbnails, not fake presets.
-- The minimap is a selection tool, not a panning tool.
-
-## Project goal
-Turn a selected running window into a simple re-rendered viewport that can be re-cropped instantly.
+## 참고
+- 앱 자신은 창 목록에서 제외됩니다.
+- 현재 구조는 실제 창 썸네일을 기준으로 동작합니다.
+- 미니맵은 드래그로 영역을 다시 잡는 선택 도구입니다.
