@@ -1,6 +1,6 @@
 {
   "name": "re-render",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "실행 중인 실제 창을 선택해 미니맵으로 영역을 다시 잡아 크게 보여주는 데스크톱 앱.",
   "main": "main.js",

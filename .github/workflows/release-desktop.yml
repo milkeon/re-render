@@ -36,7 +36,7 @@ jobs:
           if-no-files-found: error
 
   build-macos:
-    runs-on: macos-13
+    runs-on: macos-latest
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -54,7 +54,7 @@ jobs:
         run: npm ci
 
       - name: Build Mac DMG and ZIP
-        run: npx electron-builder --mac dmg zip --x64 --publish never
+        run: npx electron-builder --mac dmg zip --universal --publish never
 
       - name: Upload Mac artifacts
         uses: actions/upload-artifact@v4
