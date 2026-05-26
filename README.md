@@ -33,8 +33,10 @@ npm start
 npm run package
 ```
 
-완료되면 Linux 언패키드 빌드는 다음 위치에 생성됩니다.
+완료되면 로컬 빌드는 다음 위치에 생성됩니다.
 - `dist/linux-unpacked/`
+
+GitHub Releases에는 Windows EXE와 Mac DMG/ZIP가 올라갑니다.
 
 ## 참고
 - 앱 자신은 창 목록에서 제외됩니다.
