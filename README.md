@@ -44,3 +44,31 @@
 
 ## Local preview
 브라우저로 `index.html`을 열면 바로 실행됩니다.
+
+### Option A: 직접 열기
+- 파일 탐색기에서 `index.html`을 더블클릭
+- 또는 브라우저에 `file:///home/ubuntu/projects/screen-reframe/index.html` 입력
+
+### Option B: 로컬 웹서버로 열기
+```bash
+cd /home/ubuntu/projects/screen-reframe
+python3 -m http.server 8000
+```
+그 다음 `http://localhost:8000` 을 엽니다.
+
+## Verification
+아래 항목을 브라우저로 확인했습니다.
+- 미니맵 드래그로 선택 영역 변경
+- `세부 영역` 프리셋으로 뷰포트 변경
+- `Auto Scan` 토글이 `ON/OFF` 상태를 전환함
+- `Zoom` 슬라이더가 실제 확대 비율을 변경함
+
+### Observed result
+- 로컬 `index.html`에서 정상 렌더링 확인
+- GitHub Pages 배포본에서도 동일한 UI 타이틀과 상호작용 확인
+- 배포 URL: https://milkeon.github.io/screen-reframe/
+
+## Repo hygiene
+- 의미 있는 프로젝트명: `screen-reframe`
+- 메인 소스가 루트 `index.html`과 `README.md`로 분명하게 구성됨
+- 별도 빌드 없이 재현 가능한 단일 페이지 MVP
