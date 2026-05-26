@@ -190,7 +190,7 @@
       <div class="brand">re:render</div>
       <div class="controls">
         <button id="sourceButton" class="source-button" aria-expanded="false" aria-controls="sourceMenu">
-          <span class="current" id="currentSourceName">로딩 중</span>
+          <span class="current" id="currentSourceName"></span>
           <span class="chev">▾</span>
         </button>
         <div id="sourceMenu" class="menu" role="listbox" aria-label="running programs"></div>
@@ -208,13 +208,7 @@
     (() => {
       const WORLD_W = 1920;
       const WORLD_H = 1080;
-      const FALLBACK_SOURCES = [
-        { id: 'browser', name: 'Chrome', kind: 'browser', colors: ['#0f172a', '#2563eb', '#7dd3fc'] },
-        { id: 'editor', name: 'VS Code', kind: 'editor', colors: ['#090c18', '#7c3aed', '#c4b5fd'] },
-        { id: 'video', name: 'Video', kind: 'video', colors: ['#111111', '#f97316', '#facc15'] },
-        { id: 'chat', name: 'Discord', kind: 'chat', colors: ['#0e1220', '#8b5cf6', '#fb7185'] },
-        { id: 'presentation', name: 'Deck', kind: 'presentation', colors: ['#0a1220', '#10b981', '#5eead4'] },
-      ];
+      const FALLBACK_SOURCES = [];
 
       const mainCanvas = document.getElementById('mainCanvas');
       const miniCanvas = document.getElementById('miniCanvas');
@@ -229,24 +223,31 @@
 
       const state = {
         sources: [],
-        source: FALLBACK_SOURCES[0],
+        source: null,
         centerX: WORLD_W * 0.5,
         centerY: WORLD_H * 0.5,
         zoom: 1.8,
+        selection: null,
+        dragSelection: null,
+        dragStart: null,
         dpr: window.devicePixelRatio || 1,
         t: 0,
       };
 
       const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
-      function normalizeSource(source, index = 0) {
-        const fallback = FALLBACK_SOURCES[index % FALLBACK_SOURCES.length];
-        const colors = Array.isArray(source.colors) && source.colors.length >= 3 ? source.colors.slice(0, 3) : fallback.colors;
-        const name = String(source.name || source.title || source.appName || source.windowTitle || fallback.name).trim() || fallback.name;
+      function normalizeSource(source) {
+        if (!source) return null;
+        const name = String(source.name || source.title || source.appName || source.windowTitle || '').trim();
+        const id = source.id || source.windowId || source.handle;
+        if (id == null && !name) return null;
+        const colors = Array.isArray(source.colors) && source.colors.length >= 3
+          ? source.colors.slice(0, 3)
+          : ['#07111f', '#1b2640', '#50627d'];
         return {
-          id: String(source.id || source.windowId || source.handle || `${fallback.id}-${index}`),
-          name,
-          kind: String(source.kind || source.type || fallback.kind),
+          id: String(id || name || crypto.randomUUID()),
+          name: name || 'Window',
+          kind: String(source.kind || source.type || 'window'),
           colors,
           active: source.active !== false,
         };
@@ -264,7 +265,7 @@
         } catch (err) {
           console.warn('native source list failed', err);
         }
-        return FALLBACK_SOURCES.map((item, index) => normalizeSource(item, index));
+        return [];
       }
 
       function resize(canvas, ctx) {
@@ -284,7 +285,7 @@
         state.centerY = clamp(state.centerY, vp.h / 2, WORLD_H - vp.h / 2);
       }
 
-      function getViewport() {
+      function defaultViewport() {
         const w = WORLD_W / state.zoom;
         const h = WORLD_H / state.zoom;
         return {
@@ -295,18 +296,55 @@
         };
       }
 
+      function normalizeSelection(start, end) {
+        const minSize = 96;
+        const x1 = clamp(Math.min(start.x, end.x), 0, WORLD_W - minSize);
+        const y1 = clamp(Math.min(start.y, end.y), 0, WORLD_H - minSize);
+        const x2 = clamp(Math.max(start.x, end.x), minSize, WORLD_W);
+        const y2 = clamp(Math.max(start.y, end.y), minSize, WORLD_H);
+        const w = Math.max(minSize, x2 - x1);
+        const h = Math.max(minSize, y2 - y1);
+        return {
+          x: clamp(x1, 0, WORLD_W - w),
+          y: clamp(y1, 0, WORLD_H - h),
+          w: clamp(w, minSize, WORLD_W),
+          h: clamp(h, minSize, WORLD_H),
+        };
+      }
+
+      function applySelection(rect) {
+        state.selection = rect;
+        state.dragSelection = null;
+        state.centerX = rect.x + rect.w / 2;
+        state.centerY = rect.y + rect.h / 2;
+        state.zoom = Math.min(WORLD_W / rect.w, WORLD_H / rect.h);
+        window.__rerenderState = {
+          source: state.source,
+          viewport: rect,
+          centerX: state.centerX,
+          centerY: state.centerY,
+          zoom: state.zoom,
+        };
+      }
+
+      function getViewport() {
+        return state.dragSelection || state.selection || defaultViewport();
+      }
+
       function setSource(sourceId) {
-        const match = state.sources.find((item) => item.id === sourceId) || state.sources[0] || FALLBACK_SOURCES[0];
+        const match = state.sources.find((item) => item.id === sourceId) || null;
         state.source = match;
-        currentSourceName.textContent = match.name;
+        currentSourceName.textContent = match ? match.name : '';
         updateMenuHighlight();
-        if (match.kind === 'browser') state.zoom = 1.8;
-        if (match.kind === 'editor') state.zoom = 2.2;
-        if (match.kind === 'video') state.zoom = 1.4;
-        if (match.kind === 'chat') state.zoom = 2.0;
-        if (match.kind === 'presentation') state.zoom = 1.3;
+        if (match?.kind === 'browser') state.zoom = 1.8;
+        if (match?.kind === 'editor') state.zoom = 2.2;
+        if (match?.kind === 'video') state.zoom = 1.4;
+        if (match?.kind === 'chat') state.zoom = 2.0;
+        if (match?.kind === 'presentation') state.zoom = 1.3;
         state.centerX = WORLD_W * 0.5;
         state.centerY = WORLD_H * 0.5;
+        state.selection = defaultViewport();
+        state.dragSelection = null;
         window.__rerenderState = {
           source: state.source,
           viewport: getViewport(),
@@ -343,7 +381,7 @@
 
       function updateMenuHighlight() {
         [...sourceMenu.querySelectorAll('.option')].forEach((el) => {
-          el.classList.toggle('active', el.dataset.id === state.source.id);
+          el.classList.toggle('active', el.dataset.id === state.source?.id);
         });
       }
 
@@ -380,8 +418,9 @@
 
       function drawWorld(ctx, time) {
         const s = state.source;
+        const colors = s?.colors || ['#07111f', '#1b2640', '#50627d'];
         ctx.clearRect(0, 0, WORLD_W, WORLD_H);
-        ctx.fillStyle = gradient(ctx, 0, 0, WORLD_W, WORLD_H, s.colors);
+        ctx.fillStyle = gradient(ctx, 0, 0, WORLD_W, WORLD_H, colors);
         ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
         ctx.save();
@@ -398,7 +437,7 @@
         const pulseX = WORLD_W * 0.48 + Math.sin(time * 0.001) * 220;
         const pulseY = WORLD_H * 0.36 + Math.cos(time * 0.00125) * 120;
         const glow = ctx.createRadialGradient(pulseX, pulseY, 20, pulseX, pulseY, 360);
-        glow.addColorStop(0, 'rgba(255,255,255,0.34)');
+        glow.addColorStop(0, 'rgba(255,255,255,0.22)');
         glow.addColorStop(1, 'rgba(255,255,255,0)');
         ctx.fillStyle = glow;
         ctx.fillRect(0, 0, WORLD_W, WORLD_H);
@@ -409,109 +448,20 @@
         const shellH = 460;
         roundRect(ctx, shellX, shellY, shellW, shellH, 30, 'rgba(4, 8, 16, 0.56)', 'rgba(255,255,255,0.16)');
 
-        if (s.kind === 'browser') drawBrowser(ctx, shellX + 18, shellY + 18, shellW - 36, shellH - 36, time, s);
-        else if (s.kind === 'editor') drawEditor(ctx, shellX + 18, shellY + 18, shellW - 36, shellH - 36, time, s);
-        else if (s.kind === 'video') drawVideo(ctx, shellX + 18, shellY + 18, shellW - 36, shellH - 36, time, s);
-        else if (s.kind === 'chat') drawChat(ctx, shellX + 18, shellY + 18, shellW - 36, shellH - 36, time, s);
-        else drawPresentation(ctx, shellX + 18, shellY + 18, shellW - 36, shellH - 36, time, s);
-      }
+        roundRect(ctx, shellX + 22, shellY + 22, shellW - 44, 44, 14, 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.10)');
+        roundRect(ctx, shellX + 22, shellY + 86, shellW - 44, 126, 18, 'rgba(255,255,255,0.14)', 'rgba(255,255,255,0.08)');
+        roundRect(ctx, shellX + 22, shellY + 232, shellW - 44, 170, 18, 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.08)');
 
-      function drawBrowser(ctx, x, y, w, h, time, s) {
-        roundRect(ctx, x, y, w, h, 24, 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0.10)');
-        roundRect(ctx, x + 18, y + 16, w - 36, 46, 14, 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.10)');
-        for (let i = 0; i < 3; i++) {
-          ctx.fillStyle = ['#ff5f57', '#febc2e', '#28c840'][i];
-          ctx.beginPath();
-          ctx.arc(x + 38 + i * 18, y + 39, 6, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.fillStyle = 'rgba(255,255,255,0.82)';
-        ctx.fillRect(x + 28, y + 84, w - 56, 30);
-        ctx.fillRect(x + 28, y + 126, w - 56, 132);
         for (let i = 0; i < 4; i++) {
-          const bx = x + 32 + i * ((w - 80) / 4);
-          roundRect(ctx, bx, y + 280, 160, 110, 18, 'rgba(255,255,255,0.09)', 'rgba(255,255,255,0.08)');
+          const bx = shellX + 28 + i * ((shellW - 72) / 4);
+          roundRect(ctx, bx, shellY + 246, 160, 138, 18, 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0.08)');
           ctx.fillStyle = 'rgba(255,255,255,0.18)';
-          ctx.fillRect(bx + 16, y + 300, 128, 14);
-          ctx.fillRect(bx + 16, y + 324, 90, 12);
-          ctx.fillRect(bx + 16, y + 350, 108, 10);
+          ctx.fillRect(bx + 16, shellY + 268, 126, 12);
+          ctx.fillRect(bx + 16, shellY + 292, 96, 10);
+          ctx.fillRect(bx + 16, shellY + 316, 110, 10);
         }
-        drawWave(ctx, x + 28, y + h - 58, w - 56, 30, time, '#a7d8ff');
-      }
 
-      function drawEditor(ctx, x, y, w, h, time) {
-        roundRect(ctx, x, y, w, h, 24, 'rgba(0,0,0,0.30)', 'rgba(255,255,255,0.10)');
-        ctx.fillStyle = 'rgba(255,255,255,0.10)';
-        ctx.fillRect(x + 18, y + 18, 90, h - 36);
-        ctx.fillRect(x + 126, y + 18, w - 270, 38);
-        ctx.fillRect(x + 126, y + 68, w - 270, h - 104);
-        ctx.fillStyle = 'rgba(255,255,255,0.18)';
-        for (let i = 0; i < 12; i++) {
-          ctx.fillRect(x + 144, y + 96 + i * 24, 200 + (i % 3) * 88, 8);
-        }
-        ctx.fillStyle = 'rgba(126, 87, 255, 0.24)';
-        ctx.fillRect(x + w - 120, y + 18, 102, h - 36);
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        for (let i = 0; i < 8; i++) {
-          ctx.fillRect(x + w - 102, y + 50 + i * 38, 60 + (i % 2) * 18, 10);
-        }
-        drawWave(ctx, x + 24, y + h - 52, w - 48, 28, time, '#c5b3ff');
-      }
-
-      function drawVideo(ctx, x, y, w, h, time) {
-        roundRect(ctx, x, y, w, h, 24, 'rgba(0,0,0,0.26)', 'rgba(255,255,255,0.10)');
-        roundRect(ctx, x + 24, y + 20, w - 48, h - 120, 18, 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.08)');
-        ctx.fillStyle = 'rgba(255,255,255,0.22)';
-        ctx.beginPath();
-        ctx.moveTo(x + 56, y + 56);
-        ctx.lineTo(x + 56, y + h - 164);
-        ctx.lineTo(x + w - 76, y + h - 110);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.08)';
-        ctx.fillRect(x + 24, y + h - 88, w - 48, 24);
-        for (let i = 0; i < 8; i++) {
-          const bx = x + 32 + i * ((w - 64) / 8);
-          const bh = 18 + Math.sin(time * 0.004 + i * 0.72) * 22;
-          ctx.fillStyle = `rgba(255,255,255,${0.20 + i * 0.04})`;
-          ctx.fillRect(bx, y + h - 46 - bh, 26, bh);
-        }
-      }
-
-      function drawChat(ctx, x, y, w, h, time) {
-        roundRect(ctx, x, y, w, h, 24, 'rgba(0,0,0,0.22)', 'rgba(255,255,255,0.10)');
-        for (let i = 0; i < 4; i++) {
-          const by = y + 24 + i * 74;
-          roundRect(ctx, x + 20, by, w * 0.72, 48, 18, i % 2 ? 'rgba(255,255,255,0.08)' : 'rgba(143,201,255,0.12)', 'rgba(255,255,255,0.06)');
-          if (i % 2) {
-            roundRect(ctx, x + w - 250, by + 10, 210, 40, 18, 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.06)');
-          }
-        }
-        roundRect(ctx, x + w - 264, y + 28, 238, h - 56, 20, 'rgba(249,115,22,0.16)', 'rgba(255,255,255,0.08)');
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        ctx.fillRect(x + w - 236, y + 58, 166, 14);
-        ctx.fillRect(x + w - 236, y + 90, 130, 10);
-        ctx.fillRect(x + w - 236, y + 118, 152, 10);
-        ctx.fillRect(x + w - 236, y + 146, 110, 10);
-        drawWave(ctx, x + 18, y + h - 52, w - 36, 28, time, '#ff8f70');
-      }
-
-      function drawPresentation(ctx, x, y, w, h, time) {
-        roundRect(ctx, x, y, w, h, 24, 'rgba(255,255,255,0.04)', 'rgba(255,255,255,0.10)');
-        roundRect(ctx, x + 30, y + 28, w - 60, h - 56, 20, 'rgba(16,185,129,0.14)', 'rgba(255,255,255,0.08)');
-        ctx.fillStyle = 'rgba(255,255,255,0.18)';
-        ctx.fillRect(x + 58, y + 66, w - 116, 26);
-        ctx.fillRect(x + 58, y + 110, w * 0.52, 18);
-        ctx.fillRect(x + 58, y + 146, w * 0.38, 12);
-        ctx.strokeStyle = 'rgba(255,255,255,0.20)';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(x + 60, y + 212);
-        ctx.lineTo(x + w - 60, y + 212 + Math.sin(time * 0.002) * 20);
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(255,255,255,0.10)';
-        ctx.fillRect(x + 58, y + 250, w - 116, 28);
-        ctx.fillRect(x + 58, y + 292, w * 0.66, 16);
+        drawWave(ctx, shellX + 28, shellY + shellH - 58, shellW - 56, 30, time, '#d9e7ff');
       }
 
       function drawWave(ctx, x, y, w, h, time, color) {
@@ -586,21 +536,24 @@
         dragging = true;
         pointerId = ev.pointerId;
         miniCanvas.classList.add('dragging');
-        miniCanvas.setPointerCapture(ev.pointerId);
+        try { miniCanvas.setPointerCapture(ev.pointerId); } catch (_) {}
         const p = pointerToWorld(miniCanvas, ev);
-        state.centerX = p.x;
-        state.centerY = p.y;
+        state.dragStart = p;
+        state.dragSelection = { x: p.x, y: p.y, w: 1, h: 1 };
       });
       miniCanvas.addEventListener('pointermove', (ev) => {
-        if (!dragging || pointerId !== ev.pointerId) return;
+        if (!dragging || pointerId !== ev.pointerId || !state.dragStart) return;
         const p = pointerToWorld(miniCanvas, ev);
-        state.centerX = p.x;
-        state.centerY = p.y;
+        state.dragSelection = normalizeSelection(state.dragStart, p);
       });
       function endDrag(ev) {
         if (pointerId !== null && ev && ev.pointerId !== pointerId) return;
+        if (dragging && state.dragSelection) {
+          applySelection(state.dragSelection);
+        }
         dragging = false;
         pointerId = null;
+        state.dragStart = null;
         miniCanvas.classList.remove('dragging');
       }
       miniCanvas.addEventListener('pointerup', endDrag);
@@ -608,6 +561,7 @@
       miniCanvas.addEventListener('pointerleave', endDrag);
 
       sourceButton.addEventListener('click', () => {
+        if (!state.sources.length) return;
         const open = sourceMenu.classList.toggle('open');
         sourceButton.setAttribute('aria-expanded', String(open));
       });
@@ -620,40 +574,18 @@
       });
 
       document.addEventListener('keydown', (ev) => {
-        const vp = getViewport();
-        const stepX = Math.max(14, vp.w * 0.03);
-        const stepY = Math.max(14, vp.h * 0.03);
-        let handled = true;
-
-        switch (ev.key) {
-          case 'ArrowLeft': state.centerX -= stepX; break;
-          case 'ArrowRight': state.centerX += stepX; break;
-          case 'ArrowUp': state.centerY -= stepY; break;
-          case 'ArrowDown': state.centerY += stepY; break;
-          case '+':
-          case '=': state.zoom = clamp(state.zoom + 0.1, 1.1, 4); break;
-          case '-':
-          case '_': state.zoom = clamp(state.zoom - 0.1, 1.1, 4); break;
-          case 'Escape':
-            sourceMenu.classList.remove('open');
-            sourceButton.setAttribute('aria-expanded', 'false');
-            break;
-          default:
-            handled = false;
-        }
-
-        if (handled && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key)) {
-          clampViewport();
-        }
-        if (handled) {
-          ev.preventDefault();
+        if (ev.key === 'Escape') {
+          sourceMenu.classList.remove('open');
+          sourceButton.setAttribute('aria-expanded', 'false');
         }
       });
 
       async function init() {
         state.sources = await loadSources();
         buildMenu();
-        setSource(state.sources[0]?.id || FALLBACK_SOURCES[0].id);
+        setSource(state.sources[0]?.id || null);
+        sourceButton.disabled = state.sources.length === 0;
+        if (!state.sources.length) sourceButton.setAttribute('aria-disabled', 'true');
         requestAnimationFrame(loop);
       }
 
