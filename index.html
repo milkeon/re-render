@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Screen Reframe — 화면 영역 리렌더링 프로토타입</title>
+  <style>
+    :root {
+      --bg: #08101d;
+      --panel: rgba(13, 20, 35, 0.88);
+      --panel-2: rgba(22, 29, 45, 0.92);
+      --text: #ecf2ff;
+      --muted: #93a4c3;
+      --line: rgba(255,255,255,0.12);
+      --accent: #7dd3fc;
+      --accent-2: #60a5fa;
+      --warn: #fbbf24;
+      --good: #34d399;
+      --shadow: 0 18px 60px rgba(0,0,0,0.38);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(96,165,250,0.2), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(125,211,252,0.12), transparent 38%),
+        linear-gradient(180deg, #06101d, #040814 56%, #02050c);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    .app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .header {
+      position: absolute;
+      z-index: 20;
+      top: 18px;
+      left: 18px;
+      max-width: min(560px, calc(100vw - 36px));
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(14, 22, 38, 0.92), rgba(8, 13, 24, 0.88));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(96,165,250,0.14);
+      color: #d9ecff;
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 10px 0 8px;
+      font-size: clamp(22px, 2.8vw, 34px);
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+    }
+
+    .desc {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .controls {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button, .range-wrap {
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font: inherit;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+    }
+    button:hover, .range-wrap:hover { transform: translateY(-1px); background: rgba(255,255,255,0.1); }
+    button:active { transform: translateY(0); }
+    button.primary {
+      background: linear-gradient(180deg, rgba(96,165,250,0.30), rgba(37,99,235,0.22));
+      border-color: rgba(125,211,252,0.28);
+    }
+
+    .range-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-right: 14px;
+    }
+
+    .range-wrap label {
+      font-size: 13px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    input[type="range"] {
+      width: 150px;
+      accent-color: var(--accent);
+    }
+
+    .status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      margin-top: 12px;
+      font-size: 13px;
+      color: #dce8ff;
+    }
+    .status span { color: var(--muted); }
+    .status strong { color: #f2f7ff; font-weight: 700; }
+
+    .hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #8da3c9;
+      line-height: 1.5;
+    }
+
+    .viewer {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: stretch;
+      padding: 0;
+    }
+
+    canvas.main {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+
+    .minimap-card {
+      position: absolute;
+      z-index: 18;
+      right: 18px;
+      bottom: 18px;
+      width: min(360px, calc(100vw - 36px));
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.13);
+      background: linear-gradient(180deg, rgba(13,20,35,0.96), rgba(8,12,22,0.92));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+    }
+
+    .minimap-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .minimap-head strong { color: var(--text); }
+
+    .minimap-wrap {
+      padding: 12px;
+    }
+
+    canvas.minimap {
+      display: block;
+      width: 100%;
+      height: 180px;
+      border-radius: 14px;
+      background: #05070b;
+      border: 1px solid rgba(255,255,255,0.08);
+      cursor: grab;
+      touch-action: none;
+    }
+    canvas.minimap.dragging { cursor: grabbing; }
+
+    .footnote {
+      padding: 0 14px 14px;
+      font-size: 12px;
+      color: #93a4c3;
+      line-height: 1.45;
+    }
+
+    .legend {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      color: #dbeafe;
+      font-size: 12px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px rgba(125,211,252,0.55); }
+    .dot.green { background: var(--good); box-shadow: 0 0 12px rgba(52,211,153,0.42); }
+    .dot.gold { background: var(--warn); box-shadow: 0 0 12px rgba(251,191,36,0.45); }
+
+    @media (max-width: 700px) {
+      .header { left: 10px; top: 10px; right: 10px; max-width: none; }
+      .minimap-card { right: 10px; bottom: 10px; width: calc(100vw - 20px); }
+      input[type="range"] { width: 110px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="viewer">
+      <canvas id="mainCanvas" class="main" aria-label="Re-rendered screen viewer"></canvas>
+    </div>
+
+    <section class="header" aria-label="Project controls">
+      <div class="badge">Screen Reframe · concept MVP</div>
+      <h1>화면1의 특정 영역만 골라서, 화면2에서 크게 다시 보여주는 뷰어</h1>
+      <p class="desc">
+        이 데모는 <strong>전체 화면 미니맵 + 흰색 선택 박스 + 실시간 crop</strong> 흐름을 보여줍니다.
+        실제 제품에선 macOS/Windows/모바일/웹 캡처를 각 플랫폼 API로 연결하면 됩니다.
+      </p>
+
+      <div class="controls">
+        <button class="primary" data-preset="center">중앙 보기</button>
+        <button data-preset="top-left">좌상단</button>
+        <button data-preset="bottom-right">우하단</button>
+        <button data-preset="detail">세부 영역</button>
+        <button id="toggleFollow">Auto Scan: OFF</button>
+        <div class="range-wrap">
+          <label for="zoomRange">Zoom</label>
+          <input id="zoomRange" type="range" min="1" max="4" step="0.01" value="1.75" />
+          <strong id="zoomLabel">1.75x</strong>
+        </div>
+      </div>
+
+      <div class="status" id="statusLine"></div>
+      <div class="hint">
+        조작: 미니맵 드래그로 영역 변경 · 메인 화면에서 마우스 휠로 확대/축소 · 방향키로 영역 이동 · +/-로 줌 조절
+      </div>
+      <div class="legend">
+        <span class="pill"><span class="dot"></span> 선택 영역</span>
+        <span class="pill"><span class="dot green"></span> 미니맵 전체화면</span>
+        <span class="pill"><span class="dot gold"></span> 실시간 리렌더링</span>
+      </div>
+    </section>
+
+    <aside class="minimap-card" aria-label="Mini map and region selector">
+      <div class="minimap-head">
+        <strong>전체 화면 미니맵</strong>
+        <span>드래그해서 다시 잡기</span>
+      </div>
+      <div class="minimap-wrap">
+        <canvas id="miniCanvas" class="minimap" width="640" height="360"></canvas>
+      </div>
+      <div class="footnote">
+        흰색 박스가 현재 화면2가 보고 있는 화면1의 영역입니다. 선택 영역만 바꾸면 즉시 메인 뷰가 갱신됩니다.
+      </div>
+    </aside>
+
+    <canvas id="worldCanvas" width="1920" height="1080" hidden></canvas>
+  </div>
+
+  <script>
+    (() => {
+      const WORLD_W = 1920;
+      const WORLD_H = 1080;
+      const MIN_ZOOM = 1;
+      const MAX_ZOOM = 4;
+
+      const mainCanvas = document.getElementById('mainCanvas');
+      const miniCanvas = document.getElementById('miniCanvas');
+      const worldCanvas = document.getElementById('worldCanvas');
+      const zoomRange = document.getElementById('zoomRange');
+      const zoomLabel = document.getElementById('zoomLabel');
+      const statusLine = document.getElementById('statusLine');
+      const toggleFollow = document.getElementById('toggleFollow');
+
+      const mainCtx = mainCanvas.getContext('2d');
+      const miniCtx = miniCanvas.getContext('2d');
+      const worldCtx = worldCanvas.getContext('2d');
+
+      const state = {
+        centerX: WORLD_W * 0.5,
+        centerY: WORLD_H * 0.5,
+        zoom: Number(zoomRange.value),
+        follow: false,
+        t: 0,
+        dpr: window.devicePixelRatio || 1,
+      };
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function getViewport() {
+        const cropW = WORLD_W / state.zoom;
+        const cropH = WORLD_H / state.zoom;
+        return {
+          x: clamp(state.centerX - cropW / 2, 0, WORLD_W - cropW),
+          y: clamp(state.centerY - cropH / 2, 0, WORLD_H - cropH),
+          w: cropW,
+          h: cropH,
+        };
+      }
+
+      function setZoom(nextZoom, keepFocus = true) {
+        const prev = getViewport();
+        state.zoom = clamp(Number(nextZoom), MIN_ZOOM, MAX_ZOOM);
+        zoomRange.value = state.zoom.toFixed(2);
+        zoomLabel.textContent = `${state.zoom.toFixed(2)}x`;
+        if (keepFocus) {
+          const next = getViewport();
+          const ratioX = (state.centerX - prev.x) / prev.w;
+          const ratioY = (state.centerY - prev.y) / prev.h;
+          state.centerX = clamp(next.x + next.w * ratioX, next.w / 2, WORLD_W - next.w / 2);
+          state.centerY = clamp(next.y + next.h * ratioY, next.h / 2, WORLD_H - next.h / 2);
+        }
+        updateStatus();
+      }
+
+      function setPreset(name) {
+        const v = getViewport();
+        switch (name) {
+          case 'center':
+            state.centerX = WORLD_W * 0.5;
+            state.centerY = WORLD_H * 0.5;
+            state.zoom = 1.75;
+            break;
+          case 'top-left':
+            state.centerX = v.w * 0.5;
+            state.centerY = v.h * 0.5;
+            state.zoom = 2.4;
+            break;
+          case 'bottom-right':
+            state.centerX = WORLD_W - v.w * 0.5;
+            state.centerY = WORLD_H - v.h * 0.5;
+            state.zoom = 2.4;
+            break;
+          case 'detail':
+            state.centerX = 1370;
+            state.centerY = 520;
+            state.zoom = 3.2;
+            break;
+        }
+        zoomRange.value = state.zoom.toFixed(2);
+        zoomLabel.textContent = `${state.zoom.toFixed(2)}x`;
+        updateStatus();
+      }
+
+      function updateStatus() {
+        const vp = getViewport();
+        statusLine.innerHTML = `
+          <div><span>Viewport:</span> <strong>${Math.round(vp.x)}, ${Math.round(vp.y)} → ${Math.round(vp.w)}×${Math.round(vp.h)}</strong></div>
+          <div><span>Center:</span> <strong>${Math.round(state.centerX)}, ${Math.round(state.centerY)}</strong></div>
+          <div><span>Mode:</span> <strong>${state.follow ? 'Auto Scan' : 'Manual'}</strong></div>
+        `;
+        window.__screenReframeState = {
+          centerX: state.centerX,
+          centerY: state.centerY,
+          zoom: state.zoom,
+          follow: state.follow,
+          viewport: vp,
+        };
+      }
+
+      function resizeCanvas(canvas, ctx, logicalW, logicalH) {
+        const dpr = state.dpr;
+        const rect = canvas.getBoundingClientRect();
+        const w = Math.max(1, Math.floor(rect.width * dpr));
+        const h = Math.max(1, Math.floor(rect.height * dpr));
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function drawWorld(ctx, t) {
+        ctx.clearRect(0, 0, WORLD_W, WORLD_H);
+
+        const bg = ctx.createLinearGradient(0, 0, WORLD_W, WORLD_H);
+        bg.addColorStop(0, '#09111d');
+        bg.addColorStop(0.55, '#0b1730');
+        bg.addColorStop(1, '#11162b');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+        // grid
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+        ctx.strokeStyle = '#9ed8ff';
+        for (let x = 0; x <= WORLD_W; x += 120) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, WORLD_H);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= WORLD_H; y += 120) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(WORLD_W, y);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // moving spotlight to emphasize the crop effect
+        const glowX = 250 + Math.sin(t * 0.0011) * 180;
+        const glowY = 180 + Math.cos(t * 0.0016) * 90;
+        const spotlight = ctx.createRadialGradient(glowX, glowY, 20, glowX, glowY, 340);
+        spotlight.addColorStop(0, 'rgba(125, 211, 252, 0.42)');
+        spotlight.addColorStop(1, 'rgba(125, 211, 252, 0)');
+        ctx.fillStyle = spotlight;
+        ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+        // fake video player area
+        const videoX = 100;
+        const videoY = 90;
+        const videoW = 760;
+        const videoH = 426;
+        roundRect(ctx, videoX, videoY, videoW, videoH, 30, 'rgba(4, 8, 17, 0.76)', 'rgba(255,255,255,0.14)');
+        drawVideoFrame(ctx, videoX + 16, videoY + 16, videoW - 32, videoH - 32, t);
+        ctx.fillStyle = '#eff6ff';
+        ctx.font = '700 22px Inter, sans-serif';
+        ctx.fillText('Screen 1 · 원본 화면', videoX + 30, videoY - 20);
+
+        // cards and content blocks
+        drawInfoCard(ctx, 950, 85, 830, 300, t);
+        drawInfoCard(ctx, 950, 420, 420, 550, t, true);
+        drawChatPanel(ctx, 1400, 420, 380, 550, t);
+
+        // bottom timeline bar
+        ctx.save();
+        roundRect(ctx, 100, 890, 1680, 120, 28, 'rgba(10,15,25,0.72)', 'rgba(255,255,255,0.12)');
+        ctx.fillStyle = '#c7d7ee';
+        ctx.font = '600 18px Inter, sans-serif';
+        ctx.fillText('타임라인 / 선택 영역 / 빠른 재지정', 142, 932);
+        ctx.fillStyle = '#8fa8c9';
+        ctx.font = '14px Inter, sans-serif';
+        ctx.fillText('스크롤하거나 드래그하면 선택 영역을 바꿀 수 있는 느낌을 시뮬레이션합니다.', 142, 962);
+        ctx.restore();
+
+        // subtle labels
+        drawTag(ctx, 1260, 115, '고화질 뷰포트 · 확대 재렌더링');
+        drawTag(ctx, 1260, 155, '미니맵에서 흰색 박스를 움직이면 메인 화면이 즉시 바뀜');
+      }
+
+      function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+        if (fill) {
+          ctx.fillStyle = fill;
+          ctx.fill();
+        }
+        if (stroke) {
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      function drawTag(ctx, x, y, text) {
+        ctx.save();
+        ctx.font = '600 15px Inter, sans-serif';
+        const padX = 14;
+        const padY = 8;
+        const width = ctx.measureText(text).width + padX * 2;
+        roundRect(ctx, x, y - 18, width, 32, 16, 'rgba(96,165,250,0.18)', 'rgba(125,211,252,0.24)');
+        ctx.fillStyle = '#e6f4ff';
+        ctx.fillText(text, x + padX, y + 4);
+        ctx.restore();
+      }
+
+      function drawVideoFrame(ctx, x, y, w, h, t) {
+        ctx.save();
+        const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+        grad.addColorStop(0, '#0c1b2f');
+        grad.addColorStop(1, '#16284a');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, w, h);
+
+        // moving bars
+        for (let i = 0; i < 6; i++) {
+          const bx = x + 20 + i * 118;
+          const bh = 60 + Math.sin(t * 0.003 + i) * 28;
+          const by = y + h - 38 - bh;
+          ctx.fillStyle = `rgba(${90 + i * 16}, ${165 + i * 10}, 250, 0.48)`;
+          ctx.fillRect(bx, by, 80, bh);
+        }
+
+        // waveform
+        ctx.beginPath();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(255,255,255,0.84)';
+        for (let i = 0; i <= w; i += 10) {
+          const px = x + i;
+          const py = y + h * 0.46 + Math.sin(i * 0.018 + t * 0.004) * 24 + Math.cos(i * 0.01 + t * 0.002) * 10;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+
+        // moving caption
+        ctx.fillStyle = '#f8fbff';
+        ctx.font = '700 34px Inter, sans-serif';
+        ctx.fillText('원본 영상 / 창 / 웹사이트', x + 24, y + 62);
+        ctx.font = '500 18px Inter, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.78)';
+        ctx.fillText('이 부분의 필요한 영역만 화면2에서 확대해서 다시 보여줍니다.', x + 24, y + 98);
+
+        // faux subtitles
+        const subtitleX = x + 24;
+        const subtitleY = y + h - 58;
+        roundRect(ctx, subtitleX, subtitleY - 28, 420, 44, 14, 'rgba(0,0,0,0.48)', null);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '600 16px Inter, sans-serif';
+        ctx.fillText('자막 / UI / 세부 텍스트가 작을 때 이 앱이 필요합니다.', subtitleX + 16, subtitleY);
+        ctx.restore();
+      }
+
+      function drawInfoCard(ctx, x, y, w, h, t, compact = false) {
+        ctx.save();
+        roundRect(ctx, x, y, w, h, 28, 'rgba(8, 14, 26, 0.70)', 'rgba(255,255,255,0.10)');
+        const innerX = x + 22;
+        const innerY = y + 22;
+        ctx.fillStyle = '#f5f9ff';
+        ctx.font = '700 22px Inter, sans-serif';
+        ctx.fillText(compact ? '세부 정보 카드' : '시뮬레이션된 문서/대시보드', innerX, innerY + 16);
+        ctx.fillStyle = 'rgba(203,216,237,0.88)';
+        ctx.font = '15px Inter, sans-serif';
+        const lines = compact
+          ? ['작은 패널, 텍스트, 그래프가 섞인 영역을', '확대해서 보기 위한 예시입니다.', '선택 박스만 옮기면 바로 다른 영역으로 이동합니다.']
+          : ['작은 글씨, 카드, 버튼들이 밀집한 화면을', '확대해서 보려는 상황을 가정했습니다.', '이 영역은 리렌더링 대상이 되는 콘텐츠의 예시입니다.'];
+        lines.forEach((line, i) => ctx.fillText(line, innerX, innerY + 54 + i * 26));
+
+        // fake chart
+        const chartY = y + h - 140;
+        ctx.strokeStyle = 'rgba(125,211,252,0.35)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < 10; i++) {
+          const px = x + 28 + i * ((w - 56) / 9);
+          const py = chartY + 50 + Math.sin(t * 0.002 + i * 0.5) * 18 + Math.cos(i * 0.8) * 6;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(125,211,252,0.15)';
+        ctx.fillRect(x + 28, chartY + 22, w - 56, 86);
+        ctx.restore();
+      }
+
+      function drawChatPanel(ctx, x, y, w, h, t) {
+        ctx.save();
+        roundRect(ctx, x, y, w, h, 28, 'rgba(8, 14, 26, 0.72)', 'rgba(255,255,255,0.10)');
+        ctx.fillStyle = '#f5f9ff';
+        ctx.font = '700 22px Inter, sans-serif';
+        ctx.fillText('메시지 / 채팅 / 로그', x + 22, y + 38);
+        const msgs = [
+          ['사용자', '작은 화면에서도 읽히게 하고 싶다.'],
+          ['시스템', '선택 영역을 바꾸면 메인 영역이 즉시 리프레시된다.'],
+          ['상태', `zoom ${state.zoom.toFixed(2)}x · ${state.follow ? 'auto scan' : 'manual'}`],
+          ['노트', 'OS 캡처는 플랫폼 API가 필요하다.'],
+        ];
+        msgs.forEach((m, idx) => {
+          const ty = y + 78 + idx * 92;
+          roundRect(ctx, x + 18, ty, w - 36, 72, 18, idx % 2 ? 'rgba(255,255,255,0.05)' : 'rgba(125,211,252,0.06)', 'rgba(255,255,255,0.06)');
+          ctx.fillStyle = '#90cdf4';
+          ctx.font = '700 13px Inter, sans-serif';
+          ctx.fillText(m[0], x + 34, ty + 24);
+          ctx.fillStyle = '#f1f7ff';
+          ctx.font = '15px Inter, sans-serif';
+          wrapText(ctx, m[1], x + 34, ty + 48, w - 70, 18);
+        });
+        ctx.restore();
+      }
+
+      function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+        const words = text.split(' ');
+        let line = '';
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+            ctx.fillText(line, x, y);
+            line = words[n] + ' ';
+            y += lineHeight;
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line.trim(), x, y);
+      }
+
+      function drawMain() {
+        const rect = mainCanvas.getBoundingClientRect();
+        resizeCanvas(mainCanvas, mainCtx);
+        const w = rect.width;
+        const h = rect.height;
+        const vp = getViewport();
+        mainCtx.clearRect(0, 0, w, h);
+        mainCtx.fillStyle = '#02050a';
+        mainCtx.fillRect(0, 0, w, h);
+        mainCtx.imageSmoothingEnabled = true;
+        mainCtx.drawImage(worldCanvas, vp.x, vp.y, vp.w, vp.h, 0, 0, w, h);
+
+        // subtle overlay so the app feels like a viewer, not just a crop
+        const overlay = mainCtx.createLinearGradient(0, 0, 0, h);
+        overlay.addColorStop(0, 'rgba(2,5,10,0.10)');
+        overlay.addColorStop(1, 'rgba(2,5,10,0.28)');
+        mainCtx.fillStyle = overlay;
+        mainCtx.fillRect(0, 0, w, h);
+
+        // corner label
+        mainCtx.save();
+        mainCtx.fillStyle = 'rgba(0,0,0,0.38)';
+        mainCtx.fillRect(20, h - 62, 258, 40);
+        mainCtx.fillStyle = '#eef6ff';
+        mainCtx.font = '600 16px Inter, sans-serif';
+        mainCtx.fillText('Screen 2 · 전체화면 리렌더링 뷰', 36, h - 36);
+        mainCtx.restore();
+      }
+
+      function drawMiniMap() {
+        resizeCanvas(miniCanvas, miniCtx);
+        const w = miniCanvas.getBoundingClientRect().width;
+        const h = miniCanvas.getBoundingClientRect().height;
+        miniCtx.clearRect(0, 0, w, h);
+        miniCtx.fillStyle = '#04070d';
+        miniCtx.fillRect(0, 0, w, h);
+        miniCtx.imageSmoothingEnabled = true;
+        miniCtx.drawImage(worldCanvas, 0, 0, WORLD_W, WORLD_H, 0, 0, w, h);
+
+        const vp = getViewport();
+        const sx = (vp.x / WORLD_W) * w;
+        const sy = (vp.y / WORLD_H) * h;
+        const sw = (vp.w / WORLD_W) * w;
+        const sh = (vp.h / WORLD_H) * h;
+
+        // darken background outside selection
+        miniCtx.save();
+        miniCtx.fillStyle = 'rgba(2,5,10,0.30)';
+        miniCtx.fillRect(0, 0, w, h);
+        miniCtx.clearRect(sx, sy, sw, sh);
+        miniCtx.drawImage(worldCanvas, 0, 0, WORLD_W, WORLD_H, 0, 0, w, h);
+        miniCtx.fillStyle = 'rgba(2,5,10,0.24)';
+        miniCtx.fillRect(0, 0, w, h);
+        miniCtx.clearRect(sx, sy, sw, sh);
+        miniCtx.strokeStyle = '#ffffff';
+        miniCtx.lineWidth = 4;
+        miniCtx.shadowColor = 'rgba(255,255,255,0.65)';
+        miniCtx.shadowBlur = 16;
+        miniCtx.strokeRect(sx + 2, sy + 2, sw - 4, sh - 4);
+        miniCtx.shadowBlur = 0;
+        miniCtx.fillStyle = 'rgba(255,255,255,0.15)';
+        miniCtx.fillRect(sx, sy, sw, sh);
+        miniCtx.restore();
+      }
+
+      function updateLoop(time) {
+        state.t = time;
+
+        if (state.follow) {
+          // smooth automatic scan path to show the concept of live retargeting
+          const cx = WORLD_W * 0.5 + Math.sin(time * 0.00045) * 420 + Math.cos(time * 0.00018) * 160;
+          const cy = WORLD_H * 0.5 + Math.cos(time * 0.00052) * 220;
+          const vp = getViewport();
+          state.centerX = clamp(cx, vp.w / 2, WORLD_W - vp.w / 2);
+          state.centerY = clamp(cy, vp.h / 2, WORLD_H - vp.h / 2);
+        }
+
+        drawWorld(worldCtx, time);
+        drawMain();
+        drawMiniMap();
+        updateStatus();
+        requestAnimationFrame(updateLoop);
+      }
+
+      function pointerToWorld(canvas, event) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = WORLD_W / rect.width;
+        const scaleY = WORLD_H / rect.height;
+        return {
+          x: clamp((event.clientX - rect.left) * scaleX, 0, WORLD_W),
+          y: clamp((event.clientY - rect.top) * scaleY, 0, WORLD_H),
+        };
+      }
+
+      let dragging = false;
+      miniCanvas.addEventListener('pointerdown', (event) => {
+        dragging = true;
+        miniCanvas.classList.add('dragging');
+        miniCanvas.setPointerCapture(event.pointerId);
+        const p = pointerToWorld(miniCanvas, event);
+        state.centerX = p.x;
+        state.centerY = p.y;
+        updateStatus();
+      });
+
+      miniCanvas.addEventListener('pointermove', (event) => {
+        if (!dragging) return;
+        const p = pointerToWorld(miniCanvas, event);
+        state.centerX = p.x;
+        state.centerY = p.y;
+        updateStatus();
+      });
+
+      function endDrag() {
+        dragging = false;
+        miniCanvas.classList.remove('dragging');
+      }
+      miniCanvas.addEventListener('pointerup', endDrag);
+      miniCanvas.addEventListener('pointercancel', endDrag);
+      miniCanvas.addEventListener('pointerleave', endDrag);
+
+      mainCanvas.addEventListener('wheel', (event) => {
+        event.preventDefault();
+        const delta = Math.sign(event.deltaY) * -0.12;
+        setZoom(state.zoom + delta, false);
+      }, { passive: false });
+
+      mainCanvas.addEventListener('dblclick', () => setPreset('center'));
+
+      document.addEventListener('keydown', (event) => {
+        const vp = getViewport();
+        const stepX = Math.max(12, vp.w * 0.03);
+        const stepY = Math.max(12, vp.h * 0.03);
+        let moved = true;
+        switch (event.key) {
+          case 'ArrowLeft': state.centerX -= stepX; break;
+          case 'ArrowRight': state.centerX += stepX; break;
+          case 'ArrowUp': state.centerY -= stepY; break;
+          case 'ArrowDown': state.centerY += stepY; break;
+          case '+':
+          case '=': setZoom(state.zoom + 0.12, false); break;
+          case '-':
+          case '_': setZoom(state.zoom - 0.12, false); break;
+          case 'f':
+          case 'F': toggleFollow.click(); break;
+          case '0': setPreset('center'); break;
+          default: moved = false;
+        }
+        if (moved && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+          state.centerX = clamp(state.centerX, vp.w / 2, WORLD_W - vp.w / 2);
+          state.centerY = clamp(state.centerY, vp.h / 2, WORLD_H - vp.h / 2);
+          updateStatus();
+          event.preventDefault();
+        }
+      });
+
+      zoomRange.addEventListener('input', () => setZoom(zoomRange.value, false));
+      toggleFollow.addEventListener('click', () => {
+        state.follow = !state.follow;
+        toggleFollow.textContent = `Auto Scan: ${state.follow ? 'ON' : 'OFF'}`;
+        updateStatus();
+      });
+
+      document.querySelectorAll('button[data-preset]').forEach((button) => {
+        button.addEventListener('click', () => setPreset(button.dataset.preset));
+      });
+
+      window.__screenReframe = {
+        state,
+        setZoom,
+        setPreset,
+        getViewport,
+        getWorldSize: () => ({ width: WORLD_W, height: WORLD_H }),
+        centerOn: (x, y) => { state.centerX = x; state.centerY = y; updateStatus(); },
+      };
+
+      function onResize() {
+        state.dpr = window.devicePixelRatio || 1;
+        resizeCanvas(mainCanvas, mainCtx);
+        resizeCanvas(miniCanvas, miniCtx);
+      }
+
+      window.addEventListener('resize', onResize);
+      onResize();
+      setZoom(state.zoom, false);
+      updateStatus();
+      requestAnimationFrame(updateLoop);
+    })();
+  </script>
+</body>
+</html>
